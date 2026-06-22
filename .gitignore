@@ -1,0 +1,15 @@
+# build artifacts
+src/*.o
+*.elf
+*.gba
+*.map
+
+# emulator/flasher save files
+*.sav
+
+# editor / OS cruft
+*.swp
+.DS_Store
+
+# tooling caches
+.impeccable/
