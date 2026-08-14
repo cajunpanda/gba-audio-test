@@ -10,7 +10,7 @@
  * Input is limited to the shoulder buttons so it works on a bare board with no
  * face buttons wired:
  *   R  = next test        L  = previous test
- *   hold L+R (~0.7s)      = pause (loops the current test) / resume
+ *   hold L+R (~0.7s)      = pause (loops the current test seamlessly) / resume
  *
  * Everything is register-level and division-free at runtime so it builds with
  * a stock arm-none-eabi GCC (no devkitARM or libgcc multilib needed).
@@ -200,10 +200,9 @@ static const u16 dur[T_COUNT] = {
 };
 
 /* ---- framework state ---- */
-enum { PH_ANNOUNCE, PH_RUN, PH_GAP };
-#define LOOP_GAP 40          /* silent frames between loops when paused (~0.7s) */
+enum { PH_ANNOUNCE, PH_RUN };
 static int   cur;
-static int   phase;          /* PH_ANNOUNCE, then PH_RUN, then PH_GAP loop when paused */
+static int   phase;          /* PH_ANNOUNCE, then PH_RUN (which repeats when paused) */
 static int   pframe;         /* frame index within current phase */
 static int   announceLen;
 static int   paused;
@@ -274,6 +273,25 @@ static void test_setup(int t)
         break;
     case T_SILENCE:                               /* noise-floor window    */
         silence_all();
+        break;
+    }
+}
+
+/* Re-arm the current test for a paused replay. Unlike test_setup() this never
+   silences anything: the steady-tone tests (reference, noise, wave, silence)
+   are left completely untouched so the tone runs on without a gap or a
+   retrigger click, and the segmented tests re-arm themselves in test_update()
+   on the first frame because sub/subTimer are back at zero. */
+static void test_loop(int t)
+{
+    switch (t) {
+    case T_DSOUND:
+        ds_inc = (u32)440 << 10;   /* retune only; DMA and phase keep running */
+        break;
+    case T_DYN:
+        route(M2, M2);             /* update() supplies the note itself */
+        break;
+    default:
         break;
     }
 }
@@ -450,20 +468,13 @@ int main(void)
             test_update(cur, pframe);
             if (ds_active) ds_frame();
             if (++pframe >= dur[cur]) {
-                if (paused) {             /* loop this test after a short gap */
-                    silence_all();
-                    phase = PH_GAP; pframe = 0;
+                if (paused) {             /* seamless replay: no gap, no beeps */
+                    pframe = 0;
+                    sub = 0; subTimer = 0;
+                    test_loop(cur);
                 } else {
                     enter_test(cur + 1);
                 }
-            }
-            break;
-
-        case PH_GAP:                      /* brief silence, then replay (no beeps) */
-            if (++pframe >= LOOP_GAP) {
-                phase = PH_RUN; pframe = 0;
-                sub = 0; subTimer = 0;
-                test_setup(cur);
             }
             break;
         }

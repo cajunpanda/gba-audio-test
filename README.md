@@ -26,7 +26,7 @@ no face buttons wired.
 |-------|--------|
 | **R** | next test |
 | **L** | previous test |
-| **hold L + R** (~0.7 s) | pause (loops the current test with a short gap) or resume |
+| **hold L + R** (~0.7 s) | pause (loops the current test seamlessly, no gap) or resume |
 
 ## Test sequence
 
